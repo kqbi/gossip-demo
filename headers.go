@@ -1,6 +1,6 @@
 package main
 
-import "github.com/stefankopieczek/gossip/base"
+import "github.com/kqbi/gossip/base"
 
 // Utility methods for creating headers.
 
@@ -12,28 +12,24 @@ func Via(e *endpoint, branch string) *base.ViaHeader {
 			Transport:       e.transport,
 			Host:            e.host,
 			Port:            &e.port,
-			Params: base.Params{
-				"branch": &branch,
+			Params: base.NewParams().Add("branch", base.String{branch}),
 			},
-		},
 	}
 }
 
 func To(e *endpoint, tag string) *base.ToHeader {
 	header := &base.ToHeader{
-		DisplayName: &e.displayName,
+		DisplayName: base.String{e.displayName},
 		Address: &base.SipUri{
-			User: &e.username,
+			User: base.String{e.username},
 			Host: e.host,
-			UriParams: base.Params{
-				"transport": &e.transport,
-			},
+			UriParams: base.NewParams().Add("transport", base.String{e.transport}),
 		},
-		Params: base.Params{},
+		Params: base.NewParams(),
 	}
 
 	if tag != "" {
-		header.Params["tag"] = &tag
+		header.Params.Add("tag", base.String{tag})
 	}
 
 	return header
@@ -41,19 +37,17 @@ func To(e *endpoint, tag string) *base.ToHeader {
 
 func From(e *endpoint, tag string) *base.FromHeader {
 	header := &base.FromHeader{
-		DisplayName: &e.displayName,
+		DisplayName: base.String{e.displayName},
 		Address: &base.SipUri{
-			User: &e.username,
+			User: base.String{e.username},
 			Host: e.host,
-			UriParams: base.Params{
-				"transport": &e.transport,
-			},
+			UriParams: base.NewParams().Add("transport", base.String{e.transport}),
 		},
-		Params: base.Params{},
+		Params: base.NewParams(),
 	}
 
 	if tag != "" {
-		header.Params["tag"] = &tag
+		header.Params.Add("tag", base.String{tag})
 	}
 
 	return header
@@ -61,9 +55,9 @@ func From(e *endpoint, tag string) *base.FromHeader {
 
 func Contact(e *endpoint) *base.ContactHeader {
 	return &base.ContactHeader{
-		DisplayName: &e.displayName,
+		DisplayName: base.String{e.displayName},
 		Address: &base.SipUri{
-			User: &e.username,
+			User: base.String{e.username},
 			Host: e.host,
 			Port: &e.port,
 		},

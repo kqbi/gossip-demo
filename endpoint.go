@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stefankopieczek/gossip/base"
-	"github.com/stefankopieczek/gossip/log"
-	"github.com/stefankopieczek/gossip/transaction"
+	"github.com/kqbi/gossip/base"
+	"github.com/kqbi/gossip/log"
+	"github.com/kqbi/gossip/transaction"
+	"github.com/kqbi/gossip/transport"
 )
 
 type endpoint struct {
@@ -41,7 +42,11 @@ type txInfo struct {
 }
 
 func (e *endpoint) Start() error {
-	tm, err := transaction.NewManager(e.transport, fmt.Sprintf("%v:%v", e.host, e.port))
+	transport, err := transport.NewManager("udp")
+	if err != nil {
+		log.Severe("Failed to start transport manager %v\n", err)
+	}
+	tm, err := transaction.NewManager(transport, fmt.Sprintf("%v:%v", e.host, e.port))
 	if err != nil {
 		return err
 	}
@@ -68,7 +73,7 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 	invite := base.NewRequest(
 		base.INVITE,
 		&base.SipUri{
-			User: &callee.username,
+			User: base.String{callee.username},
 			Host: callee.host,
 			Port: &callee.port,
 		},
@@ -104,9 +109,9 @@ func (caller *endpoint) Invite(callee *endpoint) error {
 			log.Info("Received response: %v", r.Short())
 			log.Debug("Full form:\n%v\n", r.String())
 			// Get To tag if present.
-			tag, ok := r.Headers("To")[0].(*base.ToHeader).Params["tag"]
+			tag, ok := r.Headers("To").(*base.ToHeader).Params.Get("tag")
 			if ok {
-				caller.dialog.to_tag = *tag
+				caller.dialog.to_tag = tag.(base.String).String()
 			}
 
 			switch {
@@ -141,7 +146,7 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 		request = base.NewRequest(
 			method,
 			&base.SipUri{
-				User: &callee.username,
+				User: base.String{callee.username},
 				Host: callee.host,
 				Port: &callee.port,
 			},
@@ -167,20 +172,20 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 			[]base.SipHeader{
 				Via(caller, caller.dialog.currentTx.branch),
 				&base.ToHeader{
-					DisplayName: &caller.displayName,
+					DisplayName: base.String{caller.displayName},
 					Address: &base.SipUri{
-						User: &caller.username,
+						User: base.String{caller.username},
 						Host: callee.host,
 					},
-					Params: base.Params{},
+					Params: base.NewParams(),
 				},
 				&base.FromHeader{
-					DisplayName: &caller.displayName,
+					DisplayName: base.String{caller.displayName},
 					Address: &base.SipUri{
-						User: &caller.username,
+						User: base.String{caller.username},
 						Host: callee.host,
 					},
-					Params: base.Params{},
+					Params: base.NewParams(),
 				},
 				Contact(caller),
 				CSeq(caller.dialog.cseq, method),
@@ -194,6 +199,7 @@ func (caller *endpoint) nonInvite(callee *endpoint, method base.Method) error {
 	caller.dialog.cseq += 1
 
 	log.Info("Sending: %v", request.Short())
+	fmt.Printf("request.Short() :%s\n", request.String())
 	var dest string
 	var port uint16
 	if len(caller.proxy) != 0 {
@@ -235,7 +241,7 @@ func (e *endpoint) ServeInvite() {
 	log.Info("Received request: %v", r.Short())
 	log.Debug("Full form:\n%v\n", r.String())
 
-	e.dialog.callId = string(*r.Headers("Call-Id")[0].(*base.CallId))
+	e.dialog.callId = string(*r.Headers("Call-Id").(*base.CallId))
 
 	// Send a 200 OK
 	resp := base.NewResponse(
@@ -253,9 +259,9 @@ func (e *endpoint) ServeInvite() {
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	resp.AddHeader(
 		&base.ContactHeader{
-			DisplayName: &e.displayName,
+			DisplayName: base.String{e.displayName},
 			Address: &base.SipUri{
-				User: &e.username,
+				User: base.String{e.username},
 				Host: e.host,
 			},
 		},
@@ -298,7 +304,7 @@ func (e *endpoint) HandleNonInvite(tx *transaction.ServerTransaction) {
 	base.CopyHeaders("Call-Id", tx.Origin(), resp)
 	base.CopyHeaders("CSeq", tx.Origin(), resp)
 	if tx.Origin().Method == base.REGISTER {
-		to := tx.Origin().Headers("To")[0].(*base.ToHeader)
+		to := tx.Origin().Headers("To").(*base.ToHeader)
 		resp.AddHeader(
 			&base.ContactHeader{
 				Address: &base.SipUri{
@@ -310,9 +316,9 @@ func (e *endpoint) HandleNonInvite(tx *transaction.ServerTransaction) {
 	} else {
 		resp.AddHeader(
 			&base.ContactHeader{
-				DisplayName: &e.displayName,
+				DisplayName: base.String{e.displayName},
 				Address: &base.SipUri{
-					User: &e.username,
+					User: base.String{e.username},
 					Host: e.host,
 				},
 			},
